@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>태주니 생활영어</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,"Noto Sans KR",sans-serif;background:#fff3a6;color:#222}
+.app{display:flex;min-height:100vh}aside{width:225px;background:#fffbea;border-right:1px solid #eadf9b;padding:24px 16px}
+.logo{font-size:22px;font-weight:800;margin:4px 8px 28px}.nav button{width:100%;border:0;background:transparent;text-align:left;padding:13px 12px;border-radius:12px;font-size:15px;cursor:pointer}
+.nav button.active,.nav button:hover{background:#fff0a0}main{flex:1;max-width:920px;padding:42px 34px;margin:auto}h1{font-size:32px;margin:0 0 8px}.sub{color:#777;margin-bottom:28px}
+.card{background:#fffdf7;border-radius:22px;padding:24px;box-shadow:0 6px 25px #0000000b;margin-bottom:18px}
+textarea{width:100%;min-height:120px;border:1px solid #ddd;border-radius:16px;padding:16px;font-size:17px;resize:vertical}
+.row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}button.primary{background:#222;color:#fff;border:0;border-radius:13px;padding:13px 20px;font-weight:700;cursor:pointer}
+button.secondary{background:#f0f1f5;border:0;border-radius:13px;padding:13px 16px;cursor:pointer}
+.result{margin-top:18px;padding:20px;border-radius:18px;background:#f7f8ff;display:none}.eng{font-size:25px;font-weight:800;line-height:1.4}
+.small{color:#777;margin-top:9px}.explain{margin-top:13px;line-height:1.5}.recent{display:grid;gap:10px}
+.item{background:#fffdf7;padding:15px 17px;border-radius:14px;border:1px solid #eee;position:relative}
+.koBox{background:#fff;border-radius:10px;padding:9px 11px;color:#888;margin:8px 38px 8px 0}
+.enBox{background:#c9f7f5;border-radius:10px;padding:11px;color:#111;font-size:18px;font-weight:700;margin-right:38px}
+.delete{position:absolute;right:12px;top:12px;border:0;background:#ffe1e1;color:#a33;border-radius:9px;padding:6px 9px;cursor:pointer}
+.catbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.cat{border:0;background:#fffdf7;border-radius:20px;padding:9px 13px;cursor:pointer}.cat.active{background:#222;color:#fff}
+.select{border:1px solid #ddd;border-radius:12px;padding:11px;font-size:15px;background:white}
+.hidden{display:none}@media(max-width:700px){aside{width:170px}main{padding:28px 16px}h1{font-size:27px}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside><div class="logo">🌱 태주니 영어</div><div class="nav">
+<button class="active" data-page="speak">💬 영어로 말하기</button>
+<button data-page="recent">🕘 최근 표현</button>
+<button data-page="notes">📒 영어 노트</button>
+</div></aside>
+<main>
+<section id="speak"><h1>영어로 말하기</h1><div class="sub">한국어로 적으면, 태주니에게 자연스럽게 말할 영어로 바꿔드려요.</div>
+<div class="card"><textarea id="input" placeholder="예: 지금 뭐하고 있어?"></textarea><div class="row">
+<button class="primary" id="ask">영어로 바꾸기 ✨</button><button class="secondary" id="clear">지우기</button></div>
+<div class="result" id="result"><div class="eng" id="english"></div><div class="small" id="pronunciation"></div><div class="explain" id="explanation"></div>
+<div class="row"><button class="secondary" id="listen">🔊 들어보기</button><select class="select" id="category"><option>아침</option><option>식사</option><option>외출</option><option>놀이</option><option>씻기</option><option>잠자리</option><option>훈육</option><option>기타</option></select><button class="secondary" id="save">☑ 영어 노트에 저장</button></div></div></div></section>
+<section id="recent" class="hidden"><h1>최근 표현</h1><div class="sub">최근에 바꿔본 표현이에요.</div><div class="recent" id="recentList"></div></section>
+<section id="notes" class="hidden"><h1>영어 노트</h1><div class="sub">생활 상황별로 자주 쓰는 표현을 모아두세요.</div><div class="catbar" id="catbar"></div><div class="recent" id="notesList"></div></section>
+</main></div>
+<script>
+const input=document.getElementById("input"),result=document.getElementById("result"),english=document.getElementById("english"),pronunciation=document.getElementById("pronunciation"),explanation=document.getElementById("explanation");
+let current=null, selectedCat="전체";
+const cats=["전체","아침","식사","외출","놀이","씻기","잠자리","훈육","기타"];
+function load(k){return JSON.parse(localStorage.getItem(k)||"[]")} function save(k,v){localStorage.setItem(k,JSON.stringify(v))}
+async function ask(){const text=input.value.trim();if(!text)return;const btn=document.getElementById("ask");btn.disabled=true;btn.textContent="생각하는 중... 🌱";result.style.display="block";english.textContent="잠깐만요...";pronunciation.textContent="";explanation.textContent="";
+try{const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});const d=await r.json();if(!r.ok)throw new Error(d.error||"오류");current=d;english.textContent=d.english||"";pronunciation.textContent=d.pronunciation?`읽으면: ${d.pronunciation}`:"";explanation.textContent=d.explanation||"";
+const recent=load("taejuni_recent");recent.unshift({ko:text,...d});save("taejuni_recent",recent.slice(0,30));renderRecent();
+}catch(e){english.textContent="오류가 났어요 😭";explanation.textContent=e.message}finally{btn.disabled=false;btn.textContent="영어로 바꾸기 ✨"}}
+document.getElementById("ask").onclick=ask;document.getElementById("clear").onclick=()=>{input.value="";result.style.display="none"};
+document.getElementById("listen").onclick=()=>{if(current?.english){speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(current.english))}};
+document.getElementById("save").onclick=()=>{if(!current)return;const notes=load("taejuni_notes");notes.unshift({ko:input.value.trim(),category:document.getElementById("category").value,...current});save("taejuni_notes",notes);renderNotes();alert("영어 노트에 저장했어요! 📒")};
+function renderRecent(){const list=document.getElementById("recentList"),data=load("taejuni_recent");list.innerHTML=data.length?data.map((x,i)=>`<div class="item"><button class="delete" onclick="deleteRecent(${i})">삭제</button><div class="koBox">${escapeHtml(x.ko)}</div><div class="enBox">${escapeHtml(x.english)}</div></div>`).join(""):"아직 표현이 없어요."}
+function renderNotes(){const list=document.getElementById("notesList"),data=load("taejuni_notes").filter(x=>selectedCat==="전체"||x.category===selectedCat);list.innerHTML=data.length?data.map((x,i)=>`<div class="item"><button class="delete" onclick="deleteNote(${i},'${escapeHtml(x.category||"기타")}')">삭제</button><div class="small"># ${escapeHtml(x.category||"기타")}</div><div class="koBox">${escapeHtml(x.ko)}</div><div class="enBox">${escapeHtml(x.english)}</div></div>`).join(""):"저장한 표현이 없어요."}
+function deleteRecent(i){const d=load("taejuni_recent");d.splice(i,1);save("taejuni_recent",d);renderRecent()}
+function deleteNote(filteredIndex){const all=load("taejuni_notes");const visible=all.filter(x=>selectedCat==="전체"||x.category===selectedCat);const target=visible[filteredIndex];const idx=all.indexOf(target);if(idx>=0){all.splice(idx,1);save("taejuni_notes",all);renderNotes()}}
+function escapeHtml(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function renderCats(){document.getElementById("catbar").innerHTML=cats.map(c=>`<button class="cat ${c===selectedCat?"active":""}" onclick="selectedCat='${c}';renderCats();renderNotes()">${c}</button>`).join("")}
+document.querySelectorAll(".nav button").forEach(btn=>btn.onclick=()=>{document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));btn.classList.add("active");document.querySelectorAll("main section").forEach(s=>s.classList.add("hidden"));document.getElementById(btn.dataset.page).classList.remove("hidden");renderRecent();renderNotes();renderCats()});
+renderRecent();renderNotes();renderCats();
+</script></body></html>
