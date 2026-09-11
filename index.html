@@ -20,7 +20,69 @@ button.secondary{background:#f0f1f5;border:0;border-radius:13px;padding:13px 16p
 .delete{position:absolute;right:12px;top:12px;border:0;background:#ffe1e1;color:#a33;border-radius:9px;padding:6px 9px;cursor:pointer}
 .catbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.cat{border:0;background:#fffdf7;border-radius:20px;padding:9px 13px;cursor:pointer}.cat.active{background:#222;color:#fff}
 .select{border:1px solid #ddd;border-radius:12px;padding:11px;font-size:15px;background:white}
-.hidden{display:none}@media(max-width:700px){aside{width:170px}main{padding:28px 16px}h1{font-size:27px}}
+.hidden{display:none}@media(max-width:700px){
+  .app{
+    display:block;
+    min-height:100vh;
+  }
+
+  aside{
+    width:100%;
+    border-right:0;
+    border-bottom:1px solid #eadf9b;
+    padding:14px 12px 10px;
+  }
+
+  .logo{
+    font-size:20px;
+    margin:2px 8px 12px;
+  }
+
+  .nav{
+    display:flex;
+    gap:6px;
+    overflow-x:auto;
+    padding-bottom:2px;
+  }
+
+  .nav button{
+    width:auto;
+    flex:1;
+    min-width:105px;
+    white-space:nowrap;
+    text-align:center;
+    padding:11px 8px;
+    font-size:14px;
+  }
+
+  main{
+    width:100%;
+    max-width:none;
+    padding:24px 14px 40px;
+  }
+
+  h1{
+    font-size:27px;
+  }
+
+  .sub{
+    font-size:14px;
+    line-height:1.5;
+  }
+
+  .card{
+    padding:18px;
+    border-radius:18px;
+  }
+
+  textarea{
+    min-height:110px;
+  }
+
+  .eng{
+    font-size:22px;
+  }
+}
 </style>
 </head>
 <body>
