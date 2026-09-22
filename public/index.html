@@ -180,25 +180,24 @@ async function deleteRecord(id){
 
 const weekPlans={
  "2026-09":[
-  {label:"9월 1주차",start:"2026-09-01",title:"🌱 태준이 생활영어 1주차",goal:"이번 주 목표: 원하는 것 말하기 + 내 상태 말하기"},
-  {label:"9월 2주차",start:"2026-09-08",title:"🌱 태준이 생활영어 2주차",goal:"다음 주 계획은 일요일 분석 후 업데이트"},
-  {label:"9월 3주차",start:"2026-09-15",title:"🌱 태준이 생활영어 3주차",goal:"다음 주 계획은 일요일 분석 후 업데이트"},
-  {label:"9월 4주차",start:"2026-09-22",title:"🌱 태준이 생활영어 4주차",goal:"현재 진행 중"},
-  {label:"9월 5주차",start:"2026-09-29",title:"🌱 태준이 생활영어 5주차",goal:"계획 없음"}
+  {label:"9월 1주차",start:"2026-08-31",title:"🌱 태준이 생활영어 1주차",goal:"이번 주 목표: 원하는 것 말하기 + 내 상태 말하기"},
+  {label:"9월 2주차",start:"2026-09-07",title:"🌱 태준이 생활영어 2주차",goal:"다음 주 계획은 일요일 분석 후 업데이트"},
+  {label:"9월 3주차",start:"2026-09-14",title:"🌱 태준이 생활영어 3주차",goal:"다음 주 계획은 일요일 분석 후 업데이트"},
+  {label:"9월 4주차",start:"2026-09-21",title:"🌱 태준이 생활영어 4주차",goal:"현재 진행 중"},
+  {label:"9월 5주차",start:"2026-09-28",title:"🌱 태준이 생활영어 5주차",goal:"계획 없음"}
  ],
  "2026-10":[
-  {label:"10월 1주차",start:"2026-10-01",title:"🌱 태준이 생활영어 1주차",goal:"계획 없음"},
-  {label:"10월 2주차",start:"2026-10-08",title:"🌱 태준이 생활영어 2주차",goal:"계획 없음"},
-  {label:"10월 3주차",start:"2026-10-15",title:"🌱 태준이 생활영어 3주차",goal:"계획 없음"},
-  {label:"10월 4주차",start:"2026-10-22",title:"🌱 태준이 생활영어 4주차",goal:"계획 없음"},
-  {label:"10월 5주차",start:"2026-10-29",title:"🌱 태준이 생활영어 5주차",goal:"계획 없음"}
+  {label:"10월 1주차",start:"2026-10-05",title:"🌱 태준이 생활영어 1주차",goal:"계획 없음"},
+  {label:"10월 2주차",start:"2026-10-12",title:"🌱 태준이 생활영어 2주차",goal:"계획 없음"},
+  {label:"10월 3주차",start:"2026-10-19",title:"🌱 태준이 생활영어 3주차",goal:"계획 없음"},
+  {label:"10월 4주차",start:"2026-10-26",title:"🌱 태준이 생활영어 4주차",goal:"계획 없음"}
  ],
  "2026-11":[
-  {label:"11월 1주차",start:"2026-11-01",title:"🌱 태준이 생활영어 1주차",goal:"계획 없음"},
-  {label:"11월 2주차",start:"2026-11-08",title:"🌱 태준이 생활영어 2주차",goal:"계획 없음"},
-  {label:"11월 3주차",start:"2026-11-15",title:"🌱 태준이 생활영어 3주차",goal:"계획 없음"},
-  {label:"11월 4주차",start:"2026-11-22",title:"🌱 태준이 생활영어 4주차",goal:"계획 없음"},
-  {label:"11월 5주차",start:"2026-11-29",title:"🌱 태준이 생활영어 5주차",goal:"계획 없음"}
+  {label:"11월 1주차",start:"2026-11-02",title:"🌱 태준이 생활영어 1주차",goal:"계획 없음"},
+  {label:"11월 2주차",start:"2026-11-09",title:"🌱 태준이 생활영어 2주차",goal:"계획 없음"},
+  {label:"11월 3주차",start:"2026-11-16",title:"🌱 태준이 생활영어 3주차",goal:"계획 없음"},
+  {label:"11월 4주차",start:"2026-11-23",title:"🌱 태준이 생활영어 4주차",goal:"계획 없음"},
+  {label:"11월 5주차",start:"2026-11-30",title:"🌱 태준이 생활영어 5주차",goal:"계획 없음"}
  ]};
 
 function renderPlan(month="2026-09",weekIndex=0){
@@ -208,7 +207,7 @@ function renderPlan(month="2026-09",weekIndex=0){
  $("weekSelect").querySelectorAll("button").forEach(b=>b.onclick=()=>renderPlan(month,Number(b.dataset.index)));
  const w=arr[weekIndex]||arr[0];
  if(!w){$("planTable").innerHTML="";return}
- const p=(month==="2026-09"&&weekIndex===0)?plans["2026-09-21"]:null;
+const p=(month==="2026-09"&&weekIndex===3)?plans["2026-09-21"]:null;
  if(!p){
    $("planTable").innerHTML=`<div style="padding:25px"><span class="pill">${w.label}</span><h2>${w.title}</h2><p class="muted">${w.goal}</p><div class="note">일요일 주간분석이 끝나면 이 주차의 계획표가 같은 픽스 양식으로 들어갑니다.</div></div>`;
    return;
@@ -236,9 +235,26 @@ document.querySelectorAll("#monthSelect button").forEach(b=>b.onclick=()=>{
  renderPlan(m,idx);
 });
 const analysisWeeks={
- "2026-09":[{label:"9월 1주차",start:"2026-09-01"},{label:"9월 2주차",start:"2026-09-08"},{label:"9월 3주차",start:"2026-09-15"},{label:"9월 4주차",start:"2026-09-22"},{label:"9월 5주차",start:"2026-09-29"}],
- "2026-10":[{label:"10월 1주차",start:"2026-10-01"},{label:"10월 2주차",start:"2026-10-08"},{label:"10월 3주차",start:"2026-10-15"},{label:"10월 4주차",start:"2026-10-22"},{label:"10월 5주차",start:"2026-10-29"}],
- "2026-11":[{label:"11월 1주차",start:"2026-11-01"},{label:"11월 2주차",start:"2026-11-08"},{label:"11월 3주차",start:"2026-11-15"},{label:"11월 4주차",start:"2026-11-22"},{label:"11월 5주차",start:"2026-11-29"}]
+ "2026-09":[
+  {label:"9월 1주차",start:"2026-08-31"},
+  {label:"9월 2주차",start:"2026-09-07"},
+  {label:"9월 3주차",start:"2026-09-14"},
+  {label:"9월 4주차",start:"2026-09-21"},
+  {label:"9월 5주차",start:"2026-09-28"}
+ ],
+ "2026-10":[
+  {label:"10월 1주차",start:"2026-10-05"},
+  {label:"10월 2주차",start:"2026-10-12"},
+  {label:"10월 3주차",start:"2026-10-19"},
+  {label:"10월 4주차",start:"2026-10-26"}
+ ],
+ "2026-11":[
+  {label:"11월 1주차",start:"2026-11-02"},
+  {label:"11월 2주차",start:"2026-11-09"},
+  {label:"11월 3주차",start:"2026-11-16"},
+  {label:"11월 4주차",start:"2026-11-23"},
+  {label:"11월 5주차",start:"2026-11-30"}
+ ]
 };
 function currentMonthKey(){
  const d=new Date();

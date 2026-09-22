@@ -349,11 +349,17 @@ const server = http.createServer(async (req, res) => {
        * 새로운 AI 분석은 일요일에만 실행
        */
 
-      if (new Date().getDay() !== 0) {
-        return send(res, 403, {
-          error:
-            "새 AI 주간분석은 일요일에만 실행할 수 있어요.",
-        });
+     const koreaDay = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Seoul",
+  weekday: "short",
+}).format(new Date());
+
+if (koreaDay !== "Sun") {
+  return send(res, 403, {
+    error:
+      "새 AI 주간분석은 한국시간 기준 일요일에만 실행할 수 있어요.",
+  });
+}
       }
 
       /*
