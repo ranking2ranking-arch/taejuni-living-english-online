@@ -129,7 +129,7 @@ const cats=["전체","아침","식사","외출","놀이","씻기","잠자리","�
 let selectedCat="전체", current=null;
 let selectedRecordDate=new Date(2026,8,22), calMonth=new Date(2026,8,1), planMonth=new Date(2026,8,1);
 const plans={};
-plans["2026-09-21"]={title:"🌱 태준이 생활영어 1주차",goal:"이번 주 목표: 원하는 것 말하기 + 내 상태 말하기",days:[
+plans["2026-09-21"]={title:"🌱 태준이 생활영어 4주차",goal:"이번 주 목표: 원하는 것 말하기 + 내 상태 말하기",days:[
 ["월","💧 오늘의 표현","I want water.","물 마실 때","Do you want some water?","Yes. → I want water."],
 ["화","🍪 오늘의 표현","I want juice.\\nI want a cookie.\\nI want the blue one.","간식·장난감 선택","What do you want?\\nWhich one do you want?","Juice. / Blue. → 문장으로 자연스럽게 확장"],
 ["수","🙅 오늘의 표현","I don't want it.","먹기 싫은 것·하기 싫은 것","Do you want this?","No. → I don't want it."],
@@ -281,53 +281,206 @@ function currentPlanSelection(){
 let analysisMonth="2026-09",analysisIndex=0;
 function selectedAnalysisWeek(){return (analysisWeeks[analysisMonth]||[])[analysisIndex]||null}
 async function renderAnalysis(month="2026-09",idx=0){
- analysisMonth=month;analysisIndex=idx;
- document.querySelectorAll("#analysisMonthSelect button").forEach(b=>b.classList.toggle("active",b.dataset.month===month));
+ analysisMonth=month;
+ analysisIndex=idx;
+
+ document.querySelectorAll("#analysisMonthSelect button")
+   .forEach(b=>b.classList.toggle("active",b.dataset.month===month));
+
  const arr=analysisWeeks[month]||[];
- $("analysisWeekSelect").innerHTML=arr.map((w,i)=>`<button class="${i===idx?"active":""}" data-index="${i}">${w.label}</button>`).join("");
- $("analysisWeekSelect").querySelectorAll("button").forEach(b=>b.onclick=()=>renderAnalysis(month,Number(b.dataset.index)));
- const w=arr[idx]||arr[0];if(!w)return;
- // 저장된 분석은 서버(DB)에서 가져옵니다.
+
+ $("analysisWeekSelect").innerHTML=arr.map((w,i)=>
+   `<button class="${i===idx?"active":""}" data-index="${i}">${w.label}</button>`
+ ).join("");
+
+ $("analysisWeekSelect").querySelectorAll("button")
+   .forEach(b=>b.onclick=()=>renderAnalysis(month,Number(b.dataset.index)));
+
+ const w=arr[idx]||arr[0];
+ if(!w)return;
+
+ /*
+  * 주간 범위
+  * 항상 월요일 00:00 ~ 일요일 23:59
+  */
+ const startD=new Date(w.start+"T00:00:00");
+ const endD=new Date(startD);
+ endD.setDate(startD.getDate()+6);
+
+ const startDate=fmtDate(startD);
+ const endDate=fmtDate(endD);
+
+ /*
+  * 이 주차의 실제 기록만 가져오기
+  * 월요일 기록도 반드시 포함
+  */
+ const week=load("taejuni_records").filter(x=>{
+   return x.date>=startDate && x.date<=endDate;
+ });
+
+ const spontaneous=week.filter(
+   x=>x.how==="태준이가 먼저 말함"
+ );
+
+ /*
+  * 저장된 분석은 서버(DB)에서 가져옴
+  */
  let saved=null;
- try{ saved=await api("/api/analysis/"+encodeURIComponent(w.start)); }catch(e){}
- if(saved){renderAiResult(saved,w);$("runAiAnalysis").disabled=false;$("analysisStatus").textContent="저장된 분석 결과 · API 호출 없음";return;}
- const startD=new Date(w.start+"T00:00:00"),endD=new Date(startD);endD.setDate(startD.getDate()+6);
- const week=load("taejuni_records").filter(x=>x.date>=fmtDate(startD)&&x.date<=fmtDate(endD));
- const spontaneous=week.filter(x=>x.how==="태준이가 먼저 말함");
- const today=new Date();
- const isSunday=today.getDay()===0;
+
+ try{
+   saved=await api(
+     "/api/analysis/"+encodeURIComponent(w.start)
+   );
+ }catch(e){}
+
+ if(saved){
+   renderAiResult(saved,w);
+
+   $("runAiAnalysis").disabled=false;
+
+   $("analysisStatus").textContent=
+     `저장된 분석 결과 · ${startDate} ~ ${endDate} · API 호출 없음`;
+
+   return;
+ }
+
+ /*
+  * 한국시간 기준으로 오늘이 일요일인지 확인
+  */
+ const koreaDateParts=new Intl.DateTimeFormat("en-US",{
+   timeZone:"Asia/Seoul",
+   year:"numeric",
+   month:"2-digit",
+   day:"2-digit",
+   weekday:"short"
+ }).formatToParts(new Date());
+
+ const koreaWeekday=
+   koreaDateParts.find(x=>x.type==="weekday")?.value;
+
+ const isSunday=koreaWeekday==="Sun";
+
  $("runAiAnalysis").disabled=!isSunday;
- $("analysisStatus").textContent=isSunday?"오늘은 일요일 · 새 분석 가능":"API 분석은 일요일에만 실행할 수 있어요";
- $("analysisContent").innerHTML=`<div class="grid"><div class="card"><div class="muted">기록한 표현</div><div class="stat">${week.length}</div></div><div class="card"><div class="muted">먼저 말한 표현</div><div class="stat">${spontaneous.length}</div></div></div><div class="card"><span class="pill">${w.label}</span><h2>아직 분석하지 않았어요</h2><p class="muted">이 주차의 AI 분석은 일요일에 한 번만 실행할 수 있어요. 분석이 완료되면 결과를 저장해서 같은 주에 다시 눌러도 API를 호출하지 않아요.</p></div>`;
+
+ $("analysisStatus").textContent=isSunday
+   ? `오늘은 일요일 · 새 분석 가능 · ${startDate} ~ ${endDate}`
+   : `API 분석은 일요일에만 실행할 수 있어요 · ${startDate} ~ ${endDate}`;
+
+ $("analysisContent").innerHTML=`
+   <div class="grid">
+     <div class="card">
+       <div class="muted">기록한 표현</div>
+       <div class="stat">${week.length}</div>
+     </div>
+
+     <div class="card">
+       <div class="muted">먼저 말한 표현</div>
+       <div class="stat">${spontaneous.length}</div>
+     </div>
+   </div>
+
+   <div class="card">
+     <span class="pill">${w.label}</span>
+     <h2>아직 분석하지 않았어요</h2>
+     <p class="muted">
+       분석 기간: ${startDate} ~ ${endDate}<br>
+       이 주차의 AI 분석은 한국시간 기준 일요일에 한 번만 실행할 수 있어요.
+       분석이 완료되면 결과를 저장해서 같은 주에 다시 눌러도 API를 호출하지 않아요.
+     </p>
+   </div>
+ `;
 }
 function renderAiResult(r,w){
- const areas=(r.areas||[]).map(a=>`<div class="record"><b>${escape(a.name)}</b> · ${escape(a.level)}<br><span class="muted">${escape(a.evidence||"")}</span></div>`).join("");
- const plan=(r.nextWeekPlan||[]).map(d=>`<div class="record"><b>${escape(d.day)} · ${escape(d.focus)}</b><br><b>${escape(d.target)}</b><br><span class="muted">상황: ${escape(d.situation)} · 엄마: ${escape(d.momSays)}</span><br><span class="muted">예상: ${escape(d.expectedResponse)}</span></div>`).join("");
- $("analysisContent").innerHTML=`<div class="card"><span class="pill">${escape(w.label)} · AI 분석 완료</span><h2>이번 주 분석</h2><p>${escape(r.summary||"")}</p></div>
- <div class="grid"><div class="card"><b>다음 집중 영역</b><div class="phrase">${(r.nextFocus||[]).map(escape).join(" · ")||"분석 필요"}</div></div><div class="card"><b>다음 주 목표</b><p>${escape(r.nextGoal||"")}</p></div></div>
- <div class="card"><h3>🌱 8개 영역</h3>${areas||"분석 결과가 없어요."}</div>
- <div class="card"><h3>🟢 먼저 말한 표현</h3><ul>${(r.spontaneous||[]).map(x=>`<li>${escape(x)}</li>`).join("")||"<li>없음</li>"}</ul>
- <h3>✨ 새로 나온 표현</h3><ul>${(r.newExpressions||[]).map(x=>`<li>${escape(x)}</li>`).join("")||"<li>없음</li>"}</ul>
- <h3>💭 어려워한 표현</h3><ul>${(r.difficulties||[]).map(x=>`<li>${escape(x)}</li>`).join("")||"<li>없음</li>"}</ul></div>
- <div class="card"><h3>📋 다음 주 계획 초안</h3>${plan||"없음"}</div>`;
+ const areas=(r.areas||[]).map(a=>
+   `<div class="record">
+     <b>${escape(a.name)}</b> · ${escape(a.level)}<br>
+     <span class="muted">${escape(a.evidence||"")}</span>
+   </div>`
+ ).join("");
+
+ const plan=(r.nextWeekPlan||[]).map(d=>
+   `<div class="record">
+     <b>${escape(d.day)} · ${escape(d.focus)}</b><br>
+     <b>${escape(d.target)}</b><br>
+     <span class="muted">상황: ${escape(d.situation)} · 엄마: ${escape(d.momSays)}</span><br>
+     <span class="muted">예상: ${escape(d.expectedResponse)}</span>
+   </div>`
+ ).join("");
+
+ $("analysisContent").innerHTML=`
+   <div class="card">
+     <span class="pill">${escape(w.label)} · AI 분석 완료</span>
+     <h2>이번 주 분석</h2>
+     <p>${escape(r.summary||"")}</p>
+   </div>
+   <div class="grid">
+     <div class="card">
+       <b>다음 집중 영역</b>
+       <div class="phrase">${(r.nextFocus||[]).map(escape).join(" · ")||"분석 필요"}</div>
+     </div>
+     <div class="card">
+       <b>다음 주 목표</b>
+       <p>${escape(r.nextGoal||"")}</p>
+     </div>
+   </div>
+   <div class="card">
+     <h3>🌱 8개 영역</h3>
+     ${areas||"분석 결과가 없어요."}
+   </div>
+   <div class="card">
+     <h3>🟢 먼저 말한 표현</h3>
+     <ul>${(r.spontaneous||[]).map(x=>`<li>${escape(x)}</li>`).join("")||"<li>없음</li>"}</ul>
+     <h3>✨ 새로 나온 표현</h3>
+     <ul>${(r.newExpressions||[]).map(x=>`<li>${escape(x)}</li>`).join("")||"<li>없음</li>"}</ul>
+     <h3>💭 어려워한 표현</h3>
+     <ul>${(r.difficulties||[]).map(x=>`<li>${escape(x)}</li>`).join("")||"<li>없음</li>"}</ul>
+   </div>
+   <div class="card">
+     <h3>📋 다음 주 계획 초안</h3>
+     ${plan||"없음"}
+   </div>
+ `;
 }
+
 $("runAiAnalysis").onclick=async()=>{
- const w=selectedAnalysisWeek();if(!w)return;
+ const w=selectedAnalysisWeek();
+ if(!w)return;
  let saved=null;
  try{saved=await api("/api/analysis/"+encodeURIComponent(w.start));}catch(e){}
- if(saved){renderAiResult(saved,w);$("analysisStatus").textContent="저장된 분석 결과 · API 호출 없음";return;}
- if(new Date().getDay()!==0){$("analysisStatus").textContent="API 분석은 일요일에만 실행할 수 있어요";return;}
- const startD=new Date(w.start+"T00:00:00"),endD=new Date(startD);endD.setDate(startD.getDate()+6);
+ if(saved){
+   renderAiResult(saved,w);
+   $("analysisStatus").textContent="저장된 분석 결과 · API 호출 없음";
+   return;
+ }
+ const koreaWeekday=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",weekday:"short"}).format(new Date());
+ if(koreaWeekday!=="Sun"){
+   $("analysisStatus").textContent="API 분석은 한국시간 기준 일요일에만 실행할 수 있어요";
+   return;
+ }
+ const startD=new Date(w.start+"T00:00:00");
+ const endD=new Date(startD);
+ endD.setDate(startD.getDate()+6);
  const records=load("taejuni_records").filter(x=>x.date>=fmtDate(startD)&&x.date<=fmtDate(endD));
- $("runAiAnalysis").disabled=true;$("analysisStatus").textContent="AI가 이번 주 기록을 분석하고 있어요...";
+ $("runAiAnalysis").disabled=true;
+ $("analysisStatus").textContent="AI가 이번 주 기록을 분석하고 있어요...";
  try{
-  const resp=await fetch("/api/analyze-week",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({weekLabel:w.label,weekStart:w.start,records})});
-  const data=await resp.json();if(!resp.ok)throw Error(data.error||"분석 오류");
-  renderAiResult(data,w);$("analysisStatus").textContent="분석 저장 완료 ✓ · 이후에는 API 호출 없음";
- }catch(e){$("analysisStatus").textContent="오류";alert(e.message)}
- finally{$("runAiAnalysis").disabled=false}
+   const resp=await fetch("/api/analyze-week",{
+     method:"POST",
+     headers:{"Content-Type":"application/json"},
+     body:JSON.stringify({weekLabel:w.label,weekStart:w.start,records})
+   });
+   const data=await resp.json();
+   if(!resp.ok)throw Error(data.error||"분석 오류");
+   renderAiResult(data,w);
+   $("analysisStatus").textContent="분석 저장 완료 ✓ · 이후에는 API 호출 없음";
+ }catch(e){
+   $("analysisStatus").textContent="오류";
+   alert(e.message);
+ }finally{
+   $("runAiAnalysis").disabled=false;
+ }
 };
-document.querySelectorAll("#analysisMonthSelect button").forEach(b=>b.onclick=()=>{const m=b.dataset.month; const idx=(m===currentMonthKey())?currentWeekIndex(analysisWeeks[m]||[]):0; renderAnalysis(m,idx);});
+
 function renderCats(){$("catbar").innerHTML=cats.map(c=>`<button class="cat ${c===selectedCat?"active":""}" onclick="selectedCat='${c}';renderCats();renderNotes()">${c}</button>`).join("")}
 function renderNotes(){const d=load("taejuni_notes").filter(x=>selectedCat==="전체"||x.category===selectedCat);$("notesList").innerHTML=d.length?d.map(x=>`<div class="card"><button class="delete" onclick="deleteNote('${x.id}')">삭제</button><span class="pill">${escape(x.category)}</span><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.ko)}</div></div>`).join(""):"저장한 표현이 없어요."}
 $("saveNote").onclick=async()=>{const en=$("nEnglish").value.trim(),ko=$("nKo").value.trim();if(!en||!ko)return alert("영어 표현과 한국어 뜻을 입력해주세요.");
