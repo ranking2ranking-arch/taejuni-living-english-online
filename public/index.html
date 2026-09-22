@@ -143,7 +143,10 @@ function showPage(id){
  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id===id));
  document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.page===id));
  if(id==="record")renderRecords();
- if(id==="plan"){const sel=currentPlanSelection(); renderPlan(sel.month,sel.index);}
+ if(id==="plan"){
+  const sel=currentPlanSelection();
+  renderPlan(sel.month,sel.index);
+}
  if(id==="analysis"){const m=currentMonthKey(); renderAnalysis(m,currentWeekIndex(analysisWeeks[m]||[]));}
  if(id==="note"){renderCats();renderNotes()}
 }
