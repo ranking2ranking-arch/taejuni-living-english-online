@@ -25,7 +25,7 @@ button.primary{background:#222;color:#fff;border:0;border-radius:12px;padding:12
 button.secondary{background:#f0f1f5;border:0;border-radius:12px;padding:12px 16px;cursor:pointer}
 .result{margin-top:15px;padding:18px;border-radius:16px;background:#f7f8ff;display:none}
 .eng{font-size:24px;font-weight:800;line-height:1.4}.small{color:#777;margin-top:7px}.explain{margin-top:11px;line-height:1.5}
-.delete,.edit{border:0;border-radius:8px;padding:6px 9px;cursor:pointer;float:right;margin-left:6px}.delete{background:#ffe1e1;color:#a33}.edit{background:#e8f0ff;color:#245}
+.delete{border:0;background:#ffe1e1;color:#a33;border-radius:8px;padding:6px 9px;cursor:pointer;float:right}
 .catbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}.cat{border:0;background:#fffdf7;border-radius:20px;padding:8px 12px;cursor:pointer}.cat.active{background:#222;color:#fff}
 .calendar-btn{border:1px solid #ddd;background:#fffdf7;border-radius:12px;width:46px;height:46px;font-size:20px;cursor:pointer}
 .head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
@@ -126,7 +126,7 @@ async function loadInitialData(){
 function load(k){ return k==="taejuni_records" ? recordData : noteData; }
 function save(){ throw new Error("온라인 저장은 API를 통해 처리합니다."); }
 const cats=["전체","아침","식사","외출","놀이","씻기","잠자리","훈육","기타"];
-let selectedCat="전체", current=null, editingRecordId=null, editingNoteId=null;
+let selectedCat="전체", current=null;
 let selectedRecordDate=new Date(2026,8,22), calMonth=new Date(2026,8,1), planMonth=new Date(2026,8,1);
 const plans={};
 plans["2026-09-21"]={title:"🌱 태준이 생활영어 4주차",goal:"이번 주 목표: 원하는 것 말하기 + 내 상태 말하기",days:[
@@ -151,11 +151,7 @@ function showPage(id){
  if(id==="note"){renderCats();renderNotes()}
 }
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>showPage(b.dataset.page));
-$("goRecord").onclick=()=>{
-  selectedRecordDate=new Date();
-  calMonth=new Date(selectedRecordDate.getFullYear(),selectedRecordDate.getMonth(),1);
-  showPage("record");
-};
+$("goRecord").onclick=()=>showPage("record");
 
 function renderCalendar(container,label,month,selected,handler,recordMode=false){
  const y=month.getFullYear(),m=month.getMonth(); label.textContent=`${y}년 ${m+1}월`;
@@ -172,36 +168,17 @@ function renderCalendar(container,label,month,selected,handler,recordMode=false)
 $("recordCalBtn").onclick=()=>{$("recordCal").classList.toggle("show");renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
 $("prevMonth").onclick=()=>{calMonth.setMonth(calMonth.getMonth()-1);renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
 $("nextMonth").onclick=()=>{calMonth.setMonth(calMonth.getMonth()+1);renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
-function renderRecords(){const key=fmtDate(selectedRecordDate);$("recordDateLabel").textContent=niceDate(selectedRecordDate);$("selectedRecordTitle").textContent=`${niceDate(selectedRecordDate)} 기록`;const data=load("taejuni_records").filter(x=>x.date===key);$("recordList").innerHTML=data.length?data.map((x,i)=>`<div class="record"><button class="delete" onclick="deleteRecord('${x.id}')">삭제</button><button class="edit" onclick="editRecord('${x.id}')">✏️ 수정</button><div class="pill">${escape(x.category)}</div><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.how)}${x.memo?" · "+escape(x.memo):""}</div></div>`).join(""):"이 날짜에는 기록이 없어요.";renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
+function renderRecords(){const key=fmtDate(selectedRecordDate);$("recordDateLabel").textContent=niceDate(selectedRecordDate);$("selectedRecordTitle").textContent=`${niceDate(selectedRecordDate)} 기록`;const data=load("taejuni_records").filter(x=>x.date===key);$("recordList").innerHTML=data.length?data.map((x,i)=>`<div class="record"><button class="delete" onclick="deleteRecord('${x.id}')">삭제</button><div class="pill">${escape(x.category)}</div><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.how)}${x.memo?" · "+escape(x.memo):""}</div></div>`).join(""):"이 날짜에는 기록이 없어요.";renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
 $("saveRecord").onclick=async()=>{const english=$("rEnglish").value.trim();if(!english)return alert("태준이가 말한 영어를 입력해주세요.");
  try{
-  if(editingRecordId){
-   const updated=await api("/api/records/"+encodeURIComponent(editingRecordId),{method:"PATCH",body:JSON.stringify({date:fmtDate(selectedRecordDate),category:$("rCat").value,english,how:$("rHow").value,memo:$("rMemo").value.trim()})});
-   recordData=recordData.map(v=>v.id===editingRecordId?updated:v); editingRecordId=null; $("saveRecord").textContent="기록 저장"; $("rEnglish").value=""; $("rMemo").value=""; renderRecords(); alert("기록을 수정했어요! ✏️");
-  }else{
-   const item={id:crypto.randomUUID(),date:fmtDate(selectedRecordDate),category:$("rCat").value,english,how:$("rHow").value,memo:$("rMemo").value.trim()};
-   const saved=await api("/api/records",{method:"POST",body:JSON.stringify(item)});
-   recordData.unshift(saved);$("rEnglish").value="";$("rMemo").value="";renderRecords();alert("기록했어요! 🌱");
-  }
+  const item={id:crypto.randomUUID(),date:fmtDate(selectedRecordDate),category:$("rCat").value,english,how:$("rHow").value,memo:$("rMemo").value.trim()};
+  const saved=await api("/api/records",{method:"POST",body:JSON.stringify(item)});
+  recordData.unshift(saved);$("rEnglish").value="";$("rMemo").value="";renderRecords();alert("기록했어요! 🌱");
  }catch(e){alert(e.message)}
 };
 async function deleteRecord(id){
  try{ await api("/api/records/"+encodeURIComponent(id), {method:"DELETE"}); recordData=recordData.filter(x=>x.id!==id); renderRecords(); }
  catch(e){alert(e.message)}
-}
-async function editRecord(id){
- const x=recordData.find(v=>v.id===id); if(!x)return;
- editingRecordId=id;
- selectedRecordDate=new Date(x.date+"T00:00:00");
- calMonth=new Date(selectedRecordDate.getFullYear(),selectedRecordDate.getMonth(),1);
- $("rCat").value=x.category||"기타";
- $("rEnglish").value=x.english||"";
- $("rHow").value=x.how||"태준이가 먼저 말함";
- $("rMemo").value=x.memo||"";
- $("saveRecord").textContent="수정 저장";
- renderRecords();
- document.getElementById("record").scrollIntoView({behavior:"smooth",block:"start"});
- $("rEnglish").focus();
 }
 
 const weekPlans={
@@ -233,203 +210,51 @@ async function renderPlan(month="2026-09",weekIndex=0){
  $("weekSelect").querySelectorAll("button").forEach(b=>b.onclick=()=>renderPlan(month,Number(b.dataset.index)));
  const w=arr[weekIndex]||arr[0];
  if(!w){$("planTable").innerHTML="";return}
- let p=null;
- if(month==="2026-09"&&weekIndex===3) p=plans["2026-09-21"];
+
+ // 기존에 직접 넣어둔 4주차 계획은 그대로 사용
+ let p=(month==="2026-09"&&weekIndex===3)?plans["2026-09-21"]:null;
+
+ // 그 외 주차는 '바로 전 주'의 저장된 AI 분석에서 다음 주 계획을 자동으로 가져옴
  if(!p){
+   $("planTable").innerHTML=`<div style="padding:25px"><span class="pill">${w.label}</span><h2>${w.title}</h2><p class="muted">불러오는 중…</p></div>`;
    try{
      const d=new Date(w.start+"T00:00:00");
      d.setDate(d.getDate()-7);
-     const saved=await api("/api/analysis/"+encodeURIComponent(fmtDate(d)));
-     if(saved&&Array.isArray(saved.nextWeekPlan)&&saved.nextWeekPlan.length){
+     const prevStart=fmtDate(d);
+     const a=await api("/api/analysis/"+encodeURIComponent(prevStart));
+     const r=a?.result||a;
+     if(r?.nextWeekPlan?.length===5){
        p={
-         title:`🌱 태준이 생활영어 ${w.label.replace("9월 ","").replace("10월 ","").replace("11월 ","")}`,
-         goal:`이번 주 목표: ${saved.nextGoal||"이번 주 생활영어 익히기"}`,
-         days:saved.nextWeekPlan.map(x=>[x.day||"",x.focus||"🌱 오늘의 표현",x.target||"",x.situation||"",x.momSays||"",x.expectedResponse||""])
+         title:`🌱 태준이 생활영어 ${w.label.split(" ")[1]}`,
+         goal:`이번 주 목표: ${r.nextGoal||"지난주 AI 분석을 바탕으로 생활영어 연습"}`,
+         days:r.nextWeekPlan.map(x=>[
+           x.day,
+           `【집중】 ${x.focus||""}`,
+           x.target||"",
+           x.situation||"",
+           x.momSays||"",
+           x.expectedResponse||""
+         ])
        };
      }
-   }catch(e){}
+   }catch(e){
+     // 아직 이전 주의 AI 분석이 없으면 계획 없음 상태로 표시
+   }
  }
+
  if(!p){
-   $("planTable").innerHTML=`<div style="padding:25px"><span class="pill">${w.label}</span><h2>${w.title}</h2><p class="muted">${w.goal}</p><div class="note">일요일 주간분석이 끝나면 이 주차의 계획표가 자동으로 들어갑니다.</div></div>`;
+   $("planTable").innerHTML=`<div style="padding:25px"><span class="pill">${w.label}</span><h2>${w.title}</h2><p class="muted">${w.goal}</p><div class="note">이 주차의 AI 주간분석이 완료되면 다음 주 계획표가 자동으로 들어갑니다. 월요일까지 기다릴 필요는 없어요.</div></div>`;
    return;
  }
- let h=`<tr><th colspan="5" style="font-size:18px">${escape(p.title)}</th></tr><tr><th colspan="5">${escape(p.goal)}</th></tr><tr>${p.days.map(x=>`<th>${escape(x[0])}</th>`).join("")}</tr>`;
- h+=`<tr>${p.days.map(x=>`<td><b>${escape(x[1]).replace(/\\n/g,"<br>")}</b></td>`).join("")}</tr>`;
- for(const r of [["【목표 문장】",2],["【사용 상황】",3],["【엄마가 해줄 말】",4],["【태준이 예상 반응】",5]])
-   h+=`<tr>${p.days.map(x=>`<td><b>${r[0]}</b><br>${escape(x[r[1]]).replace(/\\n/g,"<br>")}</td>`).join("")}</tr>`;
- h+=`<tr><th colspan="5" class="section">🌱 태준이 생활영어 8개 영역</th></tr>`;
- const areas=[
- ["① 원하는 것","I want ___. / I don't want ___. / Can I have ___? ⭐⭐⭐"],
- ["② 좋아하고 싫어하기","I like ___. / I don't like ___. / It's yummy. ⭐⭐"],
- ["③ 발견하고 설명하기","It's a ___. / It's big. / It's blue. / I found it!"],
- ["④ 위치","Where is ___? / It's here. / It's there. / It's under the table."],
- ["⑤ 행동","I'm eating. / I'm playing. / I'm washing my hands. ⭐"],
- ["⑥ 감정·상태","I'm hungry. / I'm sleepy. / I'm tired. / I'm happy. ⭐⭐⭐"],
- ["⑦ 질문하기","What's this? / Where is ___? / What are you doing?"],
- ["⑧ 일상 대화","Come here. / Wait for me. / Look at this! / Let's go! / I'm ready. ⭐"]];
- for(const a of areas) h+=`<tr><td><b>${a[0]}</b></td><td colspan="4">${a[1]}</td></tr>`;
- $("planTable").innerHTML=`<table>${h}</table>`;
-}
-document.querySelectorAll("#monthSelect button").forEach(b=>b.onclick=()=>{
- const m=b.dataset.month;
- const idx=(m===currentMonthKey())?currentWeekIndex(weekPlans[m]||[]):0;
- renderPlan(m,idx);
-});
-const analysisWeeks={
- "2026-09":[
-  {label:"9월 1주차",start:"2026-08-31"},
-  {label:"9월 2주차",start:"2026-09-07"},
-  {label:"9월 3주차",start:"2026-09-14"},
-  {label:"9월 4주차",start:"2026-09-21"},
-  {label:"9월 5주차",start:"2026-09-28"}
- ],
- "2026-10":[
-  {label:"10월 1주차",start:"2026-10-05"},
-  {label:"10월 2주차",start:"2026-10-12"},
-  {label:"10월 3주차",start:"2026-10-19"},
-  {label:"10월 4주차",start:"2026-10-26"}
- ],
- "2026-11":[
-  {label:"11월 1주차",start:"2026-11-02"},
-  {label:"11월 2주차",start:"2026-11-09"},
-  {label:"11월 3주차",start:"2026-11-16"},
-  {label:"11월 4주차",start:"2026-11-23"},
-  {label:"11월 5주차",start:"2026-11-30"}
- ]
-};
-function currentMonthKey(){
- const d=new Date();
- return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-}
-function currentWeekIndex(list){
- if(!Array.isArray(list)||!list.length) return 0;
- const today=new Date();
- today.setHours(0,0,0,0);
- let idx=0;
- for(let i=0;i<list.length;i++){
-   const start=new Date(list[i].start+'T00:00:00');
-   start.setHours(0,0,0,0);
-   if(start<=today) idx=i;
-   else break;
- }
- return Math.max(0,Math.min(idx,list.length-1));
-}
-function currentPlanSelection(){
- const month=currentMonthKey();
- const arr=weekPlans[month]||[];
- return {month,index:currentWeekIndex(arr)};
-}
-let analysisMonth="2026-09",analysisIndex=0;
-function selectedAnalysisWeek(){return (analysisWeeks[analysisMonth]||[])[analysisIndex]||null}
-async function renderAnalysis(month="2026-09",idx=0){
- analysisMonth=month;
- analysisIndex=idx;
-
- document.querySelectorAll("#analysisMonthSelect button")
-   .forEach(b=>b.classList.toggle("active",b.dataset.month===month));
-
- const arr=analysisWeeks[month]||[];
-
- $("analysisWeekSelect").innerHTML=arr.map((w,i)=>
-   `<button class="${i===idx?"active":""}" data-index="${i}">${w.label}</button>`
- ).join("");
-
- $("analysisWeekSelect").querySelectorAll("button")
-   .forEach(b=>b.onclick=()=>renderAnalysis(month,Number(b.dataset.index)));
-
- const w=arr[idx]||arr[0];
- if(!w)return;
-
- /*
-  * 주간 범위
-  * 항상 월요일 00:00 ~ 일요일 23:59
-  */
- const startD=new Date(w.start+"T00:00:00");
- const endD=new Date(startD);
- endD.setDate(startD.getDate()+6);
-
- const startDate=fmtDate(startD);
- const endDate=fmtDate(endD);
-
- /*
-  * 이 주차의 실제 기록만 가져오기
-  * 월요일 기록도 반드시 포함
-  */
- const week=load("taejuni_records").filter(x=>{
-   return x.date>=startDate && x.date<=endDate;
- });
-
- const spontaneous=week.filter(
-   x=>x.how==="태준이가 먼저 말함"
- );
-
- /*
-  * 저장된 분석은 서버(DB)에서 가져옴
-  */
- let saved=null;
-
- try{
-   saved=await api(
-     "/api/analysis/"+encodeURIComponent(w.start)
-   );
- }catch(e){}
-
- if(saved){
-   renderAiResult(saved,w);
-
-   $("runAiAnalysis").disabled=false;
-
-   $("analysisStatus").textContent=
-     `저장된 분석 결과 · ${startDate} ~ ${endDate} · API 호출 없음`;
-
-   return;
- }
-
- /*
-  * 한국시간 기준으로 오늘이 일요일인지 확인
-  */
- const koreaDateParts=new Intl.DateTimeFormat("en-US",{
-   timeZone:"Asia/Seoul",
-   year:"numeric",
-   month:"2-digit",
-   day:"2-digit",
-   weekday:"short"
- }).formatToParts(new Date());
-
- const koreaWeekday=
-   koreaDateParts.find(x=>x.type==="weekday")?.value;
-
- const isSunday=koreaWeekday==="Sun";
-
- $("runAiAnalysis").disabled=!isSunday;
-
- $("analysisStatus").textContent=isSunday
-   ? `오늘은 일요일 · 새 분석 가능 · ${startDate} ~ ${endDate}`
-   : `API 분석은 일요일에만 실행할 수 있어요 · ${startDate} ~ ${endDate}`;
-
- $("analysisContent").innerHTML=`
-   <div class="grid">
-     <div class="card">
-       <div class="muted">기록한 표현</div>
-       <div class="stat">${week.length}</div>
-     </div>
-
-     <div class="card">
-       <div class="muted">먼저 말한 표현</div>
-       <div class="stat">${spontaneous.length}</div>
-     </div>
-   </div>
-
-   <div class="card">
-     <span class="pill">${w.label}</span>
-     <h2>아직 분석하지 않았어요</h2>
-     <p class="muted">
-       분석 기간: ${startDate} ~ ${endDate}<br>
-       이 주차의 AI 분석은 한국시간 기준 일요일에 한 번만 실행할 수 있어요.
-       분석이 완료되면 결과를 저장해서 같은 주에 다시 눌러도 API를 호출하지 않아요.
-     </p>
-   </div>
- `;
+ let h=`<table><tr><th colspan="5" style="font-size:18px">${p.title}</th></tr><tr><th colspan="5">${p.goal}</th></tr><tr>${p.days.map(x=>`<th>${x[0]}</th>`).join("")}</tr>`;
+ h+=`<tr>${p.days.map(x=>`<td><b>${String(x[1]).replace(/\\n/g,"<br>")}</b></td>`).join("")}</tr>`;
+ h+=`<tr>${p.days.map(x=>`<td>${String(x[2]).replace(/\\n/g,"<br>")}</td>`).join("")}</tr>`;
+ h+=`<tr>${p.days.map(x=>`<td>${String(x[3]).replace(/\\n/g,"<br>")}</td>`).join("")}</tr>`;
+ h+=`<tr>${p.days.map(x=>`<td><b>엄마:</b> ${String(x[4]).replace(/\\n/g,"<br>")}</td>`).join("")}</tr>`;
+ h+=`<tr>${p.days.map(x=>`<td><b>태준이:</b> ${String(x[5]).replace(/\\n/g,"<br>")}</td>`).join("")}</tr>`;
+ h+=`<tr>${p.days.map(()=>`<td style="height:75px"><span class="muted">📝 오늘의 경과 / 태준이 반응</span></td>`).join("")}</tr>`;
+ h+=`</table>`;
+ $("planTable").innerHTML=h;
 }
 function renderAiResult(r,w){
  const areas=(r.areas||[]).map(a=>
@@ -523,32 +348,17 @@ $("runAiAnalysis").onclick=async()=>{
 };
 
 function renderCats(){$("catbar").innerHTML=cats.map(c=>`<button class="cat ${c===selectedCat?"active":""}" onclick="selectedCat='${c}';renderCats();renderNotes()">${c}</button>`).join("")}
-function renderNotes(){const d=load("taejuni_notes").filter(x=>selectedCat==="전체"||x.category===selectedCat);$("notesList").innerHTML=d.length?d.map(x=>`<div class="card"><button class="delete" onclick="deleteNote('${x.id}')">삭제</button><button class="edit" onclick="editNote('${x.id}')">✏️ 수정</button><span class="pill">${escape(x.category)}</span><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.ko)}</div></div>`).join(""):"저장한 표현이 없어요."}
+function renderNotes(){const d=load("taejuni_notes").filter(x=>selectedCat==="전체"||x.category===selectedCat);$("notesList").innerHTML=d.length?d.map(x=>`<div class="card"><button class="delete" onclick="deleteNote('${x.id}')">삭제</button><span class="pill">${escape(x.category)}</span><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.ko)}</div></div>`).join(""):"저장한 표현이 없어요."}
 $("saveNote").onclick=async()=>{const en=$("nEnglish").value.trim(),ko=$("nKo").value.trim();if(!en||!ko)return alert("영어 표현과 한국어 뜻을 입력해주세요.");
  try{
-  if(editingNoteId){
-   const updated=await api("/api/notes/"+encodeURIComponent(editingNoteId),{method:"PATCH",body:JSON.stringify({english:en,ko,category:$("nCat").value})});
-   noteData=noteData.map(v=>v.id===editingNoteId?updated:v); editingNoteId=null; $("saveNote").textContent="영어노트에 저장"; $("nEnglish").value=""; $("nKo").value=""; renderNotes(); alert("영어노트를 수정했어요! ✏️");
-  }else{
-   const item={id:crypto.randomUUID(),english:en,ko,category:$("nCat").value};
-   const saved=await api("/api/notes",{method:"POST",body:JSON.stringify(item)});
-   noteData.unshift(saved);$("nEnglish").value="";$("nKo").value="";renderNotes();alert("영어노트에 저장했어요! 📒");
-  }
+  const item={id:crypto.randomUUID(),english:en,ko,category:$("nCat").value};
+  const saved=await api("/api/notes",{method:"POST",body:JSON.stringify(item)});
+  noteData.unshift(saved);$("nEnglish").value="";$("nKo").value="";renderNotes();alert("영어노트에 저장했어요! 📒");
  }catch(e){alert(e.message)}
 };
 async function deleteNote(id){
  try{ await api("/api/notes/"+encodeURIComponent(id), {method:"DELETE"}); noteData=noteData.filter(x=>x.id!==id); renderNotes(); }
  catch(e){alert(e.message)}
-}
-async function editNote(id){
- const x=noteData.find(v=>v.id===id); if(!x)return;
- editingNoteId=id;
- $("nEnglish").value=x.english||"";
- $("nKo").value=x.ko||"";
- $("nCat").value=x.category||"기타";
- $("saveNote").textContent="수정 저장";
- document.getElementById("note").scrollIntoView({behavior:"smooth",block:"start"});
- $("nEnglish").focus();
 }
 const boot=currentPlanSelection();
 const bootAnalysisIndex=currentWeekIndex(analysisWeeks[boot.month]||[]);
