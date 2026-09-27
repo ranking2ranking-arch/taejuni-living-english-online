@@ -192,6 +192,24 @@ const server = http.createServer(async (req, res) => {
       return send(res, 201, rows[0]);
     }
 
+    if (
+      req.method === "PATCH" &&
+      req.url.startsWith("/api/records/")
+    ) {
+      const id = decodeURIComponent(req.url.split("/").pop());
+      const item = JSON.parse(await readBody(req));
+
+      const rows = await supa(
+        `records?id=eq.${encodeURIComponent(id)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(item),
+        }
+      );
+
+      return send(res, 200, rows[0]);
+    }
+
     /*
      * --------------------------------
      * 기록장 기록 삭제
@@ -236,6 +254,24 @@ const server = http.createServer(async (req, res) => {
       });
 
       return send(res, 201, rows[0]);
+    }
+
+    if (
+      req.method === "PATCH" &&
+      req.url.startsWith("/api/notes/")
+    ) {
+      const id = decodeURIComponent(req.url.split("/").pop());
+      const item = JSON.parse(await readBody(req));
+
+      const rows = await supa(
+        `notes?id=eq.${encodeURIComponent(id)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(item),
+        }
+      );
+
+      return send(res, 200, rows[0]);
     }
 
     /*

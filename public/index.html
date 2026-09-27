@@ -25,7 +25,7 @@ button.primary{background:#222;color:#fff;border:0;border-radius:12px;padding:12
 button.secondary{background:#f0f1f5;border:0;border-radius:12px;padding:12px 16px;cursor:pointer}
 .result{margin-top:15px;padding:18px;border-radius:16px;background:#f7f8ff;display:none}
 .eng{font-size:24px;font-weight:800;line-height:1.4}.small{color:#777;margin-top:7px}.explain{margin-top:11px;line-height:1.5}
-.delete{border:0;background:#ffe1e1;color:#a33;border-radius:8px;padding:6px 9px;cursor:pointer;float:right}
+.delete,.edit{border:0;border-radius:8px;padding:6px 9px;cursor:pointer;float:right;margin-left:6px}.delete{background:#ffe1e1;color:#a33}.edit{background:#e8f0ff;color:#245}
 .catbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}.cat{border:0;background:#fffdf7;border-radius:20px;padding:8px 12px;cursor:pointer}.cat.active{background:#222;color:#fff}
 .calendar-btn{border:1px solid #ddd;background:#fffdf7;border-radius:12px;width:46px;height:46px;font-size:20px;cursor:pointer}
 .head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
@@ -151,7 +151,11 @@ function showPage(id){
  if(id==="note"){renderCats();renderNotes()}
 }
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>showPage(b.dataset.page));
-$("goRecord").onclick=()=>showPage("record");
+$("goRecord").onclick=()=>{
+  selectedRecordDate=new Date();
+  calMonth=new Date(selectedRecordDate.getFullYear(),selectedRecordDate.getMonth(),1);
+  showPage("record");
+};
 
 function renderCalendar(container,label,month,selected,handler,recordMode=false){
  const y=month.getFullYear(),m=month.getMonth(); label.textContent=`${y}년 ${m+1}월`;
@@ -168,7 +172,7 @@ function renderCalendar(container,label,month,selected,handler,recordMode=false)
 $("recordCalBtn").onclick=()=>{$("recordCal").classList.toggle("show");renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
 $("prevMonth").onclick=()=>{calMonth.setMonth(calMonth.getMonth()-1);renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
 $("nextMonth").onclick=()=>{calMonth.setMonth(calMonth.getMonth()+1);renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
-function renderRecords(){const key=fmtDate(selectedRecordDate);$("recordDateLabel").textContent=niceDate(selectedRecordDate);$("selectedRecordTitle").textContent=`${niceDate(selectedRecordDate)} 기록`;const data=load("taejuni_records").filter(x=>x.date===key);$("recordList").innerHTML=data.length?data.map((x,i)=>`<div class="record"><button class="delete" onclick="deleteRecord('${x.id}')">삭제</button><div class="pill">${escape(x.category)}</div><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.how)}${x.memo?" · "+escape(x.memo):""}</div></div>`).join(""):"이 날짜에는 기록이 없어요.";renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
+function renderRecords(){const key=fmtDate(selectedRecordDate);$("recordDateLabel").textContent=niceDate(selectedRecordDate);$("selectedRecordTitle").textContent=`${niceDate(selectedRecordDate)} 기록`;const data=load("taejuni_records").filter(x=>x.date===key);$("recordList").innerHTML=data.length?data.map((x,i)=>`<div class="record"><button class="delete" onclick="deleteRecord('${x.id}')">삭제</button><button class="edit" onclick="editRecord('${x.id}')">✏️ 수정</button><div class="pill">${escape(x.category)}</div><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.how)}${x.memo?" · "+escape(x.memo):""}</div></div>`).join(""):"이 날짜에는 기록이 없어요.";renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
 $("saveRecord").onclick=async()=>{const english=$("rEnglish").value.trim();if(!english)return alert("태준이가 말한 영어를 입력해주세요.");
  try{
   const item={id:crypto.randomUUID(),date:fmtDate(selectedRecordDate),category:$("rCat").value,english,how:$("rHow").value,memo:$("rMemo").value.trim()};
@@ -179,6 +183,17 @@ $("saveRecord").onclick=async()=>{const english=$("rEnglish").value.trim();if(!e
 async function deleteRecord(id){
  try{ await api("/api/records/"+encodeURIComponent(id), {method:"DELETE"}); recordData=recordData.filter(x=>x.id!==id); renderRecords(); }
  catch(e){alert(e.message)}
+}
+async function editRecord(id){
+ const x=recordData.find(v=>v.id===id); if(!x)return;
+ const english=prompt("태준이가 말한 영어",x.english); if(english===null)return;
+ const memo=prompt("엄마 메모",x.memo||""); if(memo===null)return;
+ const category=prompt("상황 (아침/식사/외출/놀이/씻기/잠자리/훈육/기타)",x.category); if(category===null)return;
+ const how=prompt("어떻게 나왔나요? (태준이가 먼저 말함/엄마 질문에 대답/따라 말함/단어로 말함)",x.how); if(how===null)return;
+ try{
+  const updated=await api("/api/records/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify({english:english.trim(),memo:memo.trim(),category,how})});
+  recordData=recordData.map(v=>v.id===id?updated:v); renderRecords();
+ }catch(e){alert(e.message)}
 }
 
 const weekPlans={
@@ -203,20 +218,35 @@ const weekPlans={
   {label:"11월 5주차",start:"2026-11-30",title:"🌱 태준이 생활영어 5주차",goal:"계획 없음"}
  ]};
 
-function renderPlan(month="2026-09",weekIndex=0){
+async function renderPlan(month="2026-09",weekIndex=0){
  const arr=weekPlans[month]||[];
  document.querySelectorAll("#monthSelect button").forEach(b=>b.classList.toggle("active",b.dataset.month===month));
  $("weekSelect").innerHTML=arr.map((w,i)=>`<button class="${i===weekIndex?"active":""}" data-index="${i}">${w.label}</button>`).join("");
  $("weekSelect").querySelectorAll("button").forEach(b=>b.onclick=()=>renderPlan(month,Number(b.dataset.index)));
  const w=arr[weekIndex]||arr[0];
  if(!w){$("planTable").innerHTML="";return}
-const p=(month==="2026-09"&&weekIndex===3)?plans["2026-09-21"]:null;
+ let p=null;
+ if(month==="2026-09"&&weekIndex===3) p=plans["2026-09-21"];
  if(!p){
-   $("planTable").innerHTML=`<div style="padding:25px"><span class="pill">${w.label}</span><h2>${w.title}</h2><p class="muted">${w.goal}</p><div class="note">일요일 주간분석이 끝나면 이 주차의 계획표가 같은 픽스 양식으로 들어갑니다.</div></div>`;
+   try{
+     const d=new Date(w.start+"T00:00:00");
+     d.setDate(d.getDate()-7);
+     const saved=await api("/api/analysis/"+encodeURIComponent(fmtDate(d)));
+     if(saved&&Array.isArray(saved.nextWeekPlan)&&saved.nextWeekPlan.length){
+       p={
+         title:`🌱 태준이 생활영어 ${w.label.replace("9월 ","").replace("10월 ","").replace("11월 ","")}`,
+         goal:`이번 주 목표: ${saved.nextGoal||"이번 주 생활영어 익히기"}`,
+         days:saved.nextWeekPlan.map(x=>[x.day||"",x.focus||"🌱 오늘의 표현",x.target||"",x.situation||"",x.momSays||"",x.expectedResponse||""])
+       };
+     }
+   }catch(e){}
+ }
+ if(!p){
+   $("planTable").innerHTML=`<div style="padding:25px"><span class="pill">${w.label}</span><h2>${w.title}</h2><p class="muted">${w.goal}</p><div class="note">일요일 주간분석이 끝나면 이 주차의 계획표가 자동으로 들어갑니다.</div></div>`;
    return;
  }
- let h=`<tr><th colspan="5" style="font-size:18px">${p.title}</th></tr><tr><th colspan="5">${p.goal}</th></tr><tr>${p.days.map(x=>`<th>${x[0]}</th>`).join("")}</tr>`;
- h+=`<tr>${p.days.map(x=>`<td><b>${x[1].replace(/\\n/g,"<br>")}</b></td>`).join("")}</tr>`;
+ let h=`<tr><th colspan="5" style="font-size:18px">${escape(p.title)}</th></tr><tr><th colspan="5">${escape(p.goal)}</th></tr><tr>${p.days.map(x=>`<th>${escape(x[0])}</th>`).join("")}</tr>`;
+ h+=`<tr>${p.days.map(x=>`<td><b>${escape(x[1]).replace(/\\n/g,"<br>")}</b></td>`).join("")}</tr>`;
  for(const r of [["【목표 문장】",2],["【사용 상황】",3],["【엄마가 해줄 말】",4],["【태준이 예상 반응】",5]])
    h+=`<tr>${p.days.map(x=>`<td><b>${r[0]}</b><br>${escape(x[r[1]]).replace(/\\n/g,"<br>")}</td>`).join("")}</tr>`;
  h+=`<tr><th colspan="5" class="section">🌱 태준이 생활영어 8개 영역</th></tr>`;
@@ -485,7 +515,7 @@ $("runAiAnalysis").onclick=async()=>{
 };
 
 function renderCats(){$("catbar").innerHTML=cats.map(c=>`<button class="cat ${c===selectedCat?"active":""}" onclick="selectedCat='${c}';renderCats();renderNotes()">${c}</button>`).join("")}
-function renderNotes(){const d=load("taejuni_notes").filter(x=>selectedCat==="전체"||x.category===selectedCat);$("notesList").innerHTML=d.length?d.map(x=>`<div class="card"><button class="delete" onclick="deleteNote('${x.id}')">삭제</button><span class="pill">${escape(x.category)}</span><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.ko)}</div></div>`).join(""):"저장한 표현이 없어요."}
+function renderNotes(){const d=load("taejuni_notes").filter(x=>selectedCat==="전체"||x.category===selectedCat);$("notesList").innerHTML=d.length?d.map(x=>`<div class="card"><button class="delete" onclick="deleteNote('${x.id}')">삭제</button><button class="edit" onclick="editNote('${x.id}')">✏️ 수정</button><span class="pill">${escape(x.category)}</span><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.ko)}</div></div>`).join(""):"저장한 표현이 없어요."}
 $("saveNote").onclick=async()=>{const en=$("nEnglish").value.trim(),ko=$("nKo").value.trim();if(!en||!ko)return alert("영어 표현과 한국어 뜻을 입력해주세요.");
  try{
   const item={id:crypto.randomUUID(),english:en,ko,category:$("nCat").value};
@@ -496,6 +526,16 @@ $("saveNote").onclick=async()=>{const en=$("nEnglish").value.trim(),ko=$("nKo").
 async function deleteNote(id){
  try{ await api("/api/notes/"+encodeURIComponent(id), {method:"DELETE"}); noteData=noteData.filter(x=>x.id!==id); renderNotes(); }
  catch(e){alert(e.message)}
+}
+async function editNote(id){
+ const x=noteData.find(v=>v.id===id); if(!x)return;
+ const english=prompt("영어 표현",x.english); if(english===null)return;
+ const ko=prompt("한국어 뜻",x.ko||""); if(ko===null)return;
+ const category=prompt("상황 (아침/식사/외출/놀이/씻기/잠자리/훈육/기타)",x.category); if(category===null)return;
+ try{
+  const updated=await api("/api/notes/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify({english:english.trim(),ko:ko.trim(),category})});
+  noteData=noteData.map(v=>v.id===id?updated:v); renderNotes();
+ }catch(e){alert(e.message)}
 }
 const boot=currentPlanSelection();
 const bootAnalysisIndex=currentWeekIndex(analysisWeeks[boot.month]||[]);
