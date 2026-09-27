@@ -199,7 +199,7 @@ const server = http.createServer(async (req, res) => {
       const id = decodeURIComponent(req.url.split("/").pop());
       const item = JSON.parse(await readBody(req));
 
-      const rows = await supa(
+      await supa(
         `records?id=eq.${encodeURIComponent(id)}`,
         {
           method: "PATCH",
@@ -207,7 +207,15 @@ const server = http.createServer(async (req, res) => {
         }
       );
 
-      return send(res, 200, rows[0]);
+      const updatedRows = await supa(
+        `records?id=eq.${encodeURIComponent(id)}&select=*`
+      );
+
+      if (!updatedRows[0]) {
+        return send(res, 404, { error: "수정할 기록을 찾을 수 없습니다." });
+      }
+
+      return send(res, 200, updatedRows[0]);
     }
 
     /*
@@ -263,7 +271,7 @@ const server = http.createServer(async (req, res) => {
       const id = decodeURIComponent(req.url.split("/").pop());
       const item = JSON.parse(await readBody(req));
 
-      const rows = await supa(
+      await supa(
         `notes?id=eq.${encodeURIComponent(id)}`,
         {
           method: "PATCH",
@@ -271,7 +279,15 @@ const server = http.createServer(async (req, res) => {
         }
       );
 
-      return send(res, 200, rows[0]);
+      const updatedRows = await supa(
+        `notes?id=eq.${encodeURIComponent(id)}&select=*`
+      );
+
+      if (!updatedRows[0]) {
+        return send(res, 404, { error: "수정할 영어노트를 찾을 수 없습니다." });
+      }
+
+      return send(res, 200, updatedRows[0]);
     }
 
     /*
