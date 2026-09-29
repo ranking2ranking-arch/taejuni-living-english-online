@@ -155,7 +155,11 @@ function showPage(id){
  if(id==="note"){renderCats();renderNotes()}
 }
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>showPage(b.dataset.page));
-$("goRecord").onclick=()=>showPage("record");
+$("goRecord").onclick=()=>{
+  selectedRecordDate=new Date();
+  calMonth=new Date(selectedRecordDate.getFullYear(),selectedRecordDate.getMonth(),1);
+  showPage("record");
+};
 
 function renderCalendar(container,label,month,selected,handler,recordMode=false){
  const y=month.getFullYear(),m=month.getMonth(); label.textContent=`${y}년 ${m+1}월`;
@@ -172,19 +176,33 @@ function renderCalendar(container,label,month,selected,handler,recordMode=false)
 $("recordCalBtn").onclick=()=>{$("recordCal").classList.toggle("show");renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
 $("prevMonth").onclick=()=>{calMonth.setMonth(calMonth.getMonth()-1);renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
 $("nextMonth").onclick=()=>{calMonth.setMonth(calMonth.getMonth()+1);renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
-function renderRecords(){const key=fmtDate(selectedRecordDate);$("recordDateLabel").textContent=niceDate(selectedRecordDate);$("selectedRecordTitle").textContent=`${niceDate(selectedRecordDate)} 기록`;const data=load("taejuni_records").filter(x=>x.date===key);$("recordList").innerHTML=data.length?data.map((x,i)=>`<div class="record"><button class="delete" onclick="deleteRecord('${x.id}')">삭제</button><div class="pill">${escape(x.category)}</div><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.how)}${x.memo?" · "+escape(x.memo):""}</div></div>`).join(""):"이 날짜에는 기록이 없어요.";renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
+function renderRecords(){const key=fmtDate(selectedRecordDate);$("recordDateLabel").textContent=niceDate(selectedRecordDate);$("selectedRecordTitle").textContent=`${niceDate(selectedRecordDate)} 기록`;const data=load("taejuni_records").filter(x=>x.date===key);$("recordList").innerHTML=data.length?data.map((x,i)=>`<div class="record"><button class="delete" onclick="deleteRecord('${x.id}')">삭제</button><button class="edit" onclick="editRecord('${x.id}')">✏️ 수정</button><div class="pill">${escape(x.category)}</div><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.how)}${x.memo?" · "+escape(x.memo):""}</div></div>`).join(""):"이 날짜에는 기록이 없어요.";renderCalendar($("days"),$("monthLabel"),calMonth,selectedRecordDate,d=>{selectedRecordDate=d;$("recordCal").classList.remove("show");renderRecords()},true)}
 $("saveRecord").onclick=async()=>{const english=$("rEnglish").value.trim();if(!english)return alert("태준이가 말한 영어를 입력해주세요.");
  try{
-  const item={id:crypto.randomUUID(),date:fmtDate(selectedRecordDate),category:$("rCat").value,english,how:$("rHow").value,memo:$("rMemo").value.trim()};
-  const saved=await api("/api/records",{method:"POST",body:JSON.stringify(item)});
-  recordData.unshift(saved);$("rEnglish").value="";$("rMemo").value="";renderRecords();alert("기록했어요! 🌱");
+  if(editingRecordId){
+   const updated=await api("/api/records/"+encodeURIComponent(editingRecordId),{method:"PATCH",body:JSON.stringify({date:fmtDate(selectedRecordDate),category:$("rCat").value,english,how:$("rHow").value,memo:$("rMemo").value.trim()})});
+   recordData=recordData.map(v=>v.id===editingRecordId?updated:v); editingRecordId=null; $("saveRecord").textContent="기록 저장"; $("rEnglish").value=""; $("rMemo").value=""; renderRecords(); alert("기록을 수정했어요! ✏️");
+  }else{
+   const item={id:crypto.randomUUID(),date:fmtDate(selectedRecordDate),category:$("rCat").value,english,how:$("rHow").value,memo:$("rMemo").value.trim()};
+   const saved=await api("/api/records",{method:"POST",body:JSON.stringify(item)});
+   recordData.unshift(saved);$("rEnglish").value="";$("rMemo").value="";renderRecords();alert("기록했어요! 🌱");
+  }
  }catch(e){alert(e.message)}
 };
-async function deleteRecord(id){
- try{ await api("/api/records/"+encodeURIComponent(id), {method:"DELETE"}); recordData=recordData.filter(x=>x.id!==id); renderRecords(); }
- catch(e){alert(e.message)}
+async function editRecord(id){
+ const x=recordData.find(v=>v.id===id); if(!x)return;
+ editingRecordId=id;
+ selectedRecordDate=new Date(x.date+"T00:00:00");
+ calMonth=new Date(selectedRecordDate.getFullYear(),selectedRecordDate.getMonth(),1);
+ $("rCat").value=x.category||"기타";
+ $("rEnglish").value=x.english||"";
+ $("rHow").value=x.how||"태준이가 먼저 말함";
+ $("rMemo").value=x.memo||"";
+ $("saveRecord").textContent="수정 저장";
+ renderRecords();
+ document.getElementById("record").scrollIntoView({behavior:"smooth",block:"start"});
+ $("rEnglish").focus();
 }
-
 const weekPlans={
  "2026-09":[
   {label:"9월 1주차",start:"2026-08-31",title:"🌱 태준이 생활영어 1주차",goal:"이번 주 목표: 원하는 것 말하기 + 내 상태 말하기"},
@@ -600,17 +618,28 @@ $("runAiAnalysis").onclick=async()=>{
 };
 
 function renderCats(){$("catbar").innerHTML=cats.map(c=>`<button class="cat ${c===selectedCat?"active":""}" onclick="selectedCat='${c}';renderCats();renderNotes()">${c}</button>`).join("")}
-function renderNotes(){const d=load("taejuni_notes").filter(x=>selectedCat==="전체"||x.category===selectedCat);$("notesList").innerHTML=d.length?d.map(x=>`<div class="card"><button class="delete" onclick="deleteNote('${x.id}')">삭제</button><span class="pill">${escape(x.category)}</span><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.ko)}</div></div>`).join(""):"저장한 표현이 없어요."}
+function renderNotes(){const d=load("taejuni_notes").filter(x=>selectedCat==="전체"||x.category===selectedCat);$("notesList").innerHTML=d.length?d.map(x=>`<div class="card"><button class="delete" onclick="deleteNote('${x.id}')">삭제</button><button class="edit" onclick="editNote('${x.id}')">✏️ 수정</button><span class="pill">${escape(x.category)}</span><div class="eng">${escape(x.english)}</div><div class="kor">${escape(x.ko)}</div></div>`).join(""):"저장한 표현이 없어요."}
 $("saveNote").onclick=async()=>{const en=$("nEnglish").value.trim(),ko=$("nKo").value.trim();if(!en||!ko)return alert("영어 표현과 한국어 뜻을 입력해주세요.");
  try{
-  const item={id:crypto.randomUUID(),english:en,ko,category:$("nCat").value};
-  const saved=await api("/api/notes",{method:"POST",body:JSON.stringify(item)});
-  noteData.unshift(saved);$("nEnglish").value="";$("nKo").value="";renderNotes();alert("영어노트에 저장했어요! 📒");
+  if(editingNoteId){
+   const updated=await api("/api/notes/"+encodeURIComponent(editingNoteId),{method:"PATCH",body:JSON.stringify({english:en,ko,category:$("nCat").value})});
+   noteData=noteData.map(v=>v.id===editingNoteId?updated:v); editingNoteId=null; $("saveNote").textContent="영어노트에 저장"; $("nEnglish").value=""; $("nKo").value=""; renderNotes(); alert("영어노트를 수정했어요! ✏️");
+  }else{
+   const item={id:crypto.randomUUID(),english:en,ko,category:$("nCat").value};
+   const saved=await api("/api/notes",{method:"POST",body:JSON.stringify(item)});
+   noteData.unshift(saved);$("nEnglish").value="";$("nKo").value="";renderNotes();alert("영어노트에 저장했어요! 📒");
+  }
  }catch(e){alert(e.message)}
 };
-async function deleteNote(id){
- try{ await api("/api/notes/"+encodeURIComponent(id), {method:"DELETE"}); noteData=noteData.filter(x=>x.id!==id); renderNotes(); }
- catch(e){alert(e.message)}
+async function editNote(id){
+ const x=noteData.find(v=>v.id===id); if(!x)return;
+ editingNoteId=id;
+ $("nEnglish").value=x.english||"";
+ $("nKo").value=x.ko||"";
+ $("nCat").value=x.category||"기타";
+ $("saveNote").textContent="수정 저장";
+ document.getElementById("note").scrollIntoView({behavior:"smooth",block:"start"});
+ $("nEnglish").focus();
 }
 const boot=currentPlanSelection();
 const bootAnalysisIndex=currentWeekIndex(analysisWeeks[boot.month]||[]);
