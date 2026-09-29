@@ -77,6 +77,21 @@ function weekLabelFromMonday(weekStart){
   return `${d.getMonth()+1}월 ${n}주차`;
 }
 
+function historicalPlanFor(start){
+  if(start==="2026-09-21") return {
+    title:"🌱 태준이 생활영어 4주차",
+    goal:"이번 주 목표: 원하는 것 말하기 + 내 상태 말하기",
+    days:[
+      {day:"월",focus:"💧 오늘의 표현",target:"I want water.",situation:"물 마실 때",momSays:"Do you want some water?",expectedResponse:"Yes. → I want water."},
+      {day:"화",focus:"🍪 오늘의 표현",target:"I want juice.\nI want a cookie.\nI want the blue one.",situation:"간식·장난감 선택",momSays:"What do you want?\nWhich one do you want?",expectedResponse:"Juice. / Blue. → 문장으로 자연스럽게 확장"},
+      {day:"수",focus:"🙅 오늘의 표현",target:"I don't want it.",situation:"먹기 싫은 것·하기 싫은 것",momSays:"Do you want this?",expectedResponse:"No. → I don't want it."},
+      {day:"목",focus:"😴 오늘의 표현",target:"I'm hungry.\nI'm sleepy.\nI'm tired.",situation:"아침·식사 전·잠자리",momSays:"Are you sleepy?\nAre you hungry?\nAre you tired?",expectedResponse:"Hungry! → I'm hungry."},
+      {day:"금",focus:"🌱 오늘의 표현",target:"Can I have some water?",situation:"물·간식 달라고 할 때",momSays:"What do you want?\nCan I have some water?",expectedResponse:"기존 표현 복습 + 새 표현은 자연스럽게 노출"}
+    ]
+  };
+  return null;
+}
+
 function buildWeeklyWorkbook(plan){
   if(!fs.existsSync(WEEKLY_TEMPLATE)) throw new Error("주간계획표 고정 양식 파일이 없습니다.");
   const zip=unzipSync(new Uint8Array(fs.readFileSync(WEEKLY_TEMPLATE)));
@@ -355,15 +370,18 @@ const server = http.createServer(async (req, res) => {
       const prev=previousMonday(weekStart);
       if(!prev) return send(res,400,{error:"weekStart가 올바르지 않습니다."});
 
+      const historical=historicalPlanFor(weekStart);
       let result=null;
-      try{
-        const rows=await supa(`weekly_analysis?week_start=eq.${encodeURIComponent(prev)}&select=result&limit=1`);
-        result=rows[0]?.result||null;
-      }catch(e){
-        return send(res,500,{error:e.message});
+      if(!historical){
+        try{
+          const rows=await supa(`weekly_analysis?week_start=eq.${encodeURIComponent(prev)}&select=result&limit=1`);
+          result=rows[0]?.result||null;
+        }catch(e){
+          return send(res,500,{error:e.message});
+        }
       }
 
-      let next=result?.nextWeekPlan;
+      let next=historical?.days || result?.nextWeekPlan;
       if(!Array.isArray(next)||next.length!==5){
         if(weekStart==="2026-09-28"){
           next=[
@@ -536,6 +554,13 @@ Identify:
 
 Keep the plan natural for a parent to use in daily life.
 Do not make drills or worksheets.
+
+For nextWeekPlan, make the five days feel like real-life Korean parent-child conversations, not textbook exercises.
+- target: include 1-3 natural English examples that Taejun could actually say in that situation. Vary forms when natural (for example I want..., Can I have..., I don't want..., I need..., This one..., etc.).
+- momSays: use varied, natural parent language that would genuinely occur in the situation. Do not repeat the same question pattern every day.
+- expectedResponse: include 2-3 plausible natural child responses, with short answers allowed and a natural expanded sentence when appropriate. Do not make every day use the same response pattern.
+- situation: describe a concrete everyday moment that naturally creates a reason to use the target language.
+- Keep the language age-appropriate for a 5-year-old and useful in ordinary home/outdoor routines.
 
 Return ONLY valid JSON.
 
