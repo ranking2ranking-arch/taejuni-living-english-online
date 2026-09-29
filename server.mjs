@@ -2,6 +2,7 @@ import http from "http";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { unzipSync, zipSync, strFromU8, strToU8 } from "fflate";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, "public");
@@ -9,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+const WEEKLY_TEMPLATE = path.join(__dirname, "templates", "weekly-template.xlsx");
 
 function send(
   res,
@@ -41,6 +43,83 @@ async function readBody(req) {
   }
 
   return body;
+}
+
+
+function previousMonday(weekStart){
+  const d=new Date(String(weekStart)+"T00:00:00");
+  if(Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate()-7);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function xmlEscape(s){
+  return String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function setSharedString(xml,index,value){
+  const re=new RegExp(`<si>.*?<\\/si>`,'gs');
+  let i=0;
+  return xml.replace(re,(match)=>{
+    if(i++!==index) return match;
+    return `<si><t xml:space="preserve">${xmlEscape(String(value??"")).replace(/\\n/g,"&#10;")}</t></si>`;
+  });
+}
+function weekLabelFromMonday(weekStart){
+  const d=new Date(String(weekStart)+"T00:00:00");
+  if(Number.isNaN(d.getTime())) return "주간";
+  // 프로젝트 기준: 주차는 '월요일이 속한 달'을 기준으로 계산합니다.
+  // 따라서 2026-09-28은 9월 5주차입니다.
+  const first=new Date(d.getFullYear(),d.getMonth(),1);
+  const firstMonday=new Date(first);
+  const day=first.getDay(); // Sun=0 ... Sat=6
+  const diff=(day+6)%7;      // 1일 이전의 가장 가까운 월요일까지
+  firstMonday.setDate(first.getDate()-diff);
+  const n=Math.floor((d-firstMonday)/(7*24*60*60*1000))+1;
+  return `${d.getMonth()+1}월 ${n}주차`;
+}
+
+function buildWeeklyWorkbook(plan){
+  if(!fs.existsSync(WEEKLY_TEMPLATE)) throw new Error("주간계획표 고정 양식 파일이 없습니다.");
+  const zip=unzipSync(new Uint8Array(fs.readFileSync(WEEKLY_TEMPLATE)));
+  let ss=strFromU8(zip["xl/sharedStrings.xml"]);
+  const days=Array.isArray(plan.days)?plan.days:[];
+  if(days.length!==5) throw new Error("주간계획표는 월~금 5일 계획이 필요합니다.");
+
+  // 사용자가 확정한 '태준이 주간계획표양식 최종픽스본.xlsx'의
+  // 셀/공유문자열 구조를 그대로 유지하고, 내용만 주차별로 교체합니다.
+  const sharedIndexes={
+    title:37,
+    goal:38,
+    day:[0,1,2,3,4],
+    focus:[5,6,7,8,9],
+    target:[10,11,12,13,14],
+    situation:[15,16,17,18,19],
+    mom:[43,39,40,41,42],
+    expected:[44,45,46,47,48]
+  };
+
+  const values=new Map();
+  values.set(sharedIndexes.title, plan.title || "🌱 태준이 생활영어");
+  values.set(sharedIndexes.goal, `이번 주 목표: ${plan.goal || "생활 속에서 자연스럽게 영어로 말하기"}`);
+
+  days.forEach((d,i)=>{
+    values.set(sharedIndexes.day[i], ["월요일","화요일","수요일","목요일","금요일"][i]);
+    values.set(sharedIndexes.focus[i], `【집중】\n${d.focus||""}`);
+    values.set(sharedIndexes.target[i], `【목표 문장】\n${d.target||""}`);
+    values.set(sharedIndexes.situation[i], `【사용 상황】\n${d.situation||""}`);
+    values.set(sharedIndexes.mom[i], `[엄마가 해줄 말]\n${d.momSays||""}`);
+    values.set(sharedIndexes.expected[i], `[태준이 예상 반응]\n${d.expectedResponse||""}`);
+  });
+
+  for(const [i,v] of values) ss=setSharedString(ss, i, v);
+  zip["xl/sharedStrings.xml"]=strToU8(ss);
+
+  // 시트 이름만 주차에 맞춰 바꾸고, 서식/병합/인쇄 설정은 템플릿 그대로 둡니다.
+  const sheetName=String(plan.sheetName||"주간계획표");
+  let workbookXml=strFromU8(zip["xl/workbook.xml"]);
+  workbookXml=workbookXml.replace(/name="[^"]*계획표"/, `name="${xmlEscape(sheetName)}"`);
+  workbookXml=workbookXml.replace(/Target="worksheets\/[^\"]+\.xml"/, 'Target="worksheets/sheet1.xml"');
+  zip["xl/workbook.xml"]=strToU8(workbookXml);
+  return Buffer.from(zipSync(zip,{level:6}));
 }
 
 function supaHeaders(extra = {}) {
@@ -192,32 +271,6 @@ const server = http.createServer(async (req, res) => {
       return send(res, 201, rows[0]);
     }
 
-    if (
-      req.method === "PATCH" &&
-      req.url.startsWith("/api/records/")
-    ) {
-      const id = decodeURIComponent(req.url.split("/").pop());
-      const item = JSON.parse(await readBody(req));
-
-      await supa(
-        `records?id=eq.${encodeURIComponent(id)}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(item),
-        }
-      );
-
-      const updatedRows = await supa(
-        `records?id=eq.${encodeURIComponent(id)}&select=*`
-      );
-
-      if (!updatedRows[0]) {
-        return send(res, 404, { error: "수정할 기록을 찾을 수 없습니다." });
-      }
-
-      return send(res, 200, updatedRows[0]);
-    }
-
     /*
      * --------------------------------
      * 기록장 기록 삭제
@@ -264,32 +317,6 @@ const server = http.createServer(async (req, res) => {
       return send(res, 201, rows[0]);
     }
 
-    if (
-      req.method === "PATCH" &&
-      req.url.startsWith("/api/notes/")
-    ) {
-      const id = decodeURIComponent(req.url.split("/").pop());
-      const item = JSON.parse(await readBody(req));
-
-      await supa(
-        `notes?id=eq.${encodeURIComponent(id)}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(item),
-        }
-      );
-
-      const updatedRows = await supa(
-        `notes?id=eq.${encodeURIComponent(id)}&select=*`
-      );
-
-      if (!updatedRows[0]) {
-        return send(res, 404, { error: "수정할 영어노트를 찾을 수 없습니다." });
-      }
-
-      return send(res, 200, updatedRows[0]);
-    }
-
     /*
      * --------------------------------
      * 영어노트 삭제
@@ -314,6 +341,52 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, {
         ok: true,
       });
+    }
+
+
+    /*
+     * --------------------------------
+     * 주간계획표 인쇄용 엑셀 다운로드
+     * --------------------------------
+     */
+    if (req.method === "GET" && req.url.startsWith("/api/weekly-plan.xlsx")) {
+      const url=new URL(req.url, `http://${req.headers.host||"localhost"}`);
+      const weekStart=url.searchParams.get("weekStart");
+      const prev=previousMonday(weekStart);
+      if(!prev) return send(res,400,{error:"weekStart가 올바르지 않습니다."});
+
+      let result=null;
+      try{
+        const rows=await supa(`weekly_analysis?week_start=eq.${encodeURIComponent(prev)}&select=result&limit=1`);
+        result=rows[0]?.result||null;
+      }catch(e){
+        return send(res,500,{error:e.message});
+      }
+
+      let next=result?.nextWeekPlan;
+      if(!Array.isArray(next)||next.length!==5){
+        if(weekStart==="2026-09-28"){
+          next=[
+            {day:"월",focus:"원하는 것",target:"I want some snacks.\nI want a cookie.",situation:"간식을 먹기 전이나 간식 준비 중",momSays:"What do you want?\nDo you want a snack?",expectedResponse:"I want a cookie.\nI want some snacks."},
+            {day:"화",focus:"원하는 것 / 필요한 것",target:"I need some grapes.\nI need some water.",situation:"간식이나 음료가 필요할 때",momSays:"What do you need?\nDo you need some grapes?",expectedResponse:"I need some grapes.\nI need some water."},
+            {day:"수",focus:"발견하고 설명하기",target:"What is it?\nIt's a pumpkin.",situation:"그림책이나 주변에서 익숙한 것을 발견했을 때",momSays:"What is it?\nWhat did you find?",expectedResponse:"It's a pumpkin.\nIt's a ___!"},
+            {day:"목",focus:"질문하기",target:"What do you want?\nI want the blue one.",situation:"여러 가지 중에서 고를 때",momSays:"What do you want?\nWhich one do you want?",expectedResponse:"I want the blue one.\nI want this one."},
+            {day:"금",focus:"일상 대화",target:"Do you want some water?\nYes, please. / I'm good.",situation:"물을 주거나 간식을 챙겨줄 때",momSays:"Do you want some water?\nDo you want some more?",expectedResponse:"Yes, please.\nI'm good."}
+          ];
+        } else {
+          return send(res,404,{error:"이 주차의 계획표가 아직 만들어지지 않았어요. 이전 주 일요일 AI 분석을 먼저 완료해주세요."});
+        }
+      }
+      const label=weekLabelFromMonday(weekStart);
+      const plan={title:`🌱 태준이 생활영어 ${label}`,sheetName:`${label} 계획표`,goal:result?.nextGoal||"생활 속에서 자연스럽게 영어로 말하기",days:next};
+      const file=buildWeeklyWorkbook(plan);
+      res.writeHead(200,{
+        "Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition":`attachment; filename*=UTF-8''${encodeURIComponent(`태준이_생활영어_${label}_인쇄용.xlsx`)}`,
+        "Content-Length":file.length,
+        "Cache-Control":"no-store"
+      });
+      return res.end(file);
     }
 
     /*

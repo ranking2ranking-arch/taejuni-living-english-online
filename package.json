@@ -1,1 +1,7 @@
-{"name":"taejuni-living-english-online","version":"1.0.0","type":"module","scripts":{"start":"node --env-file=.env server.mjs"}}
+{
+  "name": "taejuni-living-english-online",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {"start":"node server.mjs"},
+  "dependencies": {"fflate":"^0.8.2"}
+}
